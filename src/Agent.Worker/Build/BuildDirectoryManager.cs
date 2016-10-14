@@ -2,6 +2,7 @@ using Microsoft.TeamFoundation.DistributedTask.WebApi;
 using Microsoft.VisualStudio.Services.Agent.Util;
 using System;
 using System.IO;
+using Microsoft.TeamFoundation.Build.WebApi;
 
 namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
 {
@@ -14,8 +15,8 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
             ISourceProvider sourceProvider);
 
         void CreateDirectory(
-            IExecutionContext executionContext, 
-            string description, string path, 
+            IExecutionContext executionContext,
+            string description, string path,
             bool deleteExisting);
     }
 
@@ -93,7 +94,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
             // Always recreate artifactstaging dir and testresult dir.
             // Recreate binaries dir if clean=binary is set.
             // Delete source dir if clean=src is set.
-            BuildCleanOption? cleanOption = executionContext.Variables.Build_Clean;
+            BuildCleanOption cleanOption = GetBuildCleanOption(executionContext, endpoint);
             CreateDirectory(
                 executionContext,
                 description: "build directory",
@@ -201,5 +202,49 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
                 IOUtil.DeleteDirectory(path, executionContext.CancellationToken);
             }
         }
+
+        private BuildCleanOption GetBuildCleanOption(IExecutionContext executionContext, ServiceEndpoint endpoint)
+        {
+            BuildCleanOption? cleanOption = executionContext.Variables.Build_Clean;
+            if (cleanOption != null)
+            {
+                return cleanOption.Value;
+            }
+
+            bool clean = false;
+            if (endpoint.Data.ContainsKey(WellKnownEndpointData.Clean))
+            {
+                clean = StringUtil.ConvertToBoolean(endpoint.Data[WellKnownEndpointData.Clean]);
+            }
+
+            if (clean)
+            {
+                if (endpoint.Data.ContainsKey("cleanOptions"))
+                {
+                    RepositoryCleanOptions? cleanOptionFromEndpoint = EnumUtil.TryParse<RepositoryCleanOptions>(endpoint.Data["cleanOptions"]);
+                    if (cleanOptionFromEndpoint != null)
+                    {
+                        if (cleanOptionFromEndpoint == RepositoryCleanOptions.All)
+                        {
+                            return BuildCleanOption.All;
+                        }
+                        else if (cleanOptionFromEndpoint == RepositoryCleanOptions.SourceAndOutput)
+                        {
+                            return BuildCleanOption.Binary;
+                        }
+                    }
+                }
+            }
+
+            return BuildCleanOption.None;
+        }
+    }
+
+    [Flags]
+    public enum RepositoryCleanOptions
+    {
+        Source,
+        SourceAndOutput,
+        All,
     }
 }
