@@ -90,11 +90,15 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
             }
 
             // Prepare the build directory.
+            // There are 2 ways to provide build directory clean policy.
+            //     1> set definition variable build.clean or agent.clean.buildDirectory. (on-prem user need to use this, since there is no Web UI in TFS 2016)
+            //     2> select source clean option in definition repository tab. (VSTS will have this option in definition designer UI)
             // Delete entire build directory if clean=all is set.
             // Always recreate artifactstaging dir and testresult dir.
             // Recreate binaries dir if clean=binary is set.
-            // Delete source dir if clean=src is set.
-            BuildCleanOption cleanOption = GetBuildCleanOption(executionContext, endpoint);
+            // Recreate source dir if clean=src is set.
+            BuildCleanOption cleanOption = GetBuildDirectoryCleanOption(executionContext, endpoint);
+
             CreateDirectory(
                 executionContext,
                 description: "build directory",
@@ -203,7 +207,7 @@ namespace Microsoft.VisualStudio.Services.Agent.Worker.Build
             }
         }
 
-        private BuildCleanOption GetBuildCleanOption(IExecutionContext executionContext, ServiceEndpoint endpoint)
+        private BuildCleanOption GetBuildDirectoryCleanOption(IExecutionContext executionContext, ServiceEndpoint endpoint)
         {
             BuildCleanOption? cleanOption = executionContext.Variables.Build_Clean;
             if (cleanOption != null)
